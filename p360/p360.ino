@@ -136,17 +136,16 @@ void doHoming(){
       homingStatus++; 
     }
   }
-
-
-
 }
 
 void resetMotors(){
   lonStepper.setMaxSpeed(lonStepPerRevolution / 10); // piatto
   lonStepper.setAcceleration(lonStepPerRevolution / 20);
+  
   // lonStepper.moveTo(0);
   
   latStepper.setMaxSpeed(latStepPerRevolution / 30); // macchina fotografica
+  latStepper.setSpeed(latStepPerRevolution / 30);
   latStepper.setAcceleration(latStepPerRevolution / 40);
   // latStepper.moveTo(0);
 
@@ -191,14 +190,98 @@ void do360Spiral(){
     }
   
   }
+}
 
+int lonHomingStatus = -1;
+
+void testMotor(){
+  int lonHomingTriggered = !digitalRead(LON_STEPPER_HOMING_PIN);
+  
+  long speed = 200;
+  
+
+  switch (lonHomingStatus) {
+    case -1:
+      lonStepper.setSpeed(speed); 
+      lonHomingStatus++;
+      Serial.print("START HOMING ");
+      Serial.println(speed);
+      break;      
+    case 0:
+      
+      if(lonHomingTriggered){
+        lonHomingStatus++;
+        Serial.print("lonHomingStatus:");
+        Serial.println(lonHomingStatus);
+      }else{
+        lonStepper.runSpeed();
+      }
+
+      break;
+    case 1:
+      
+      if(!lonHomingTriggered){
+        lonHomingStatus++;
+        Serial.print("lonHomingStatus:2 ZeroPos");
+        Serial.println(lonStepper.currentPosition());
+        lonStepper.setCurrentPosition(0);
+        lonStepper.setSpeed(-speed);
+      }else{
+        lonStepper.runSpeed();
+      }
+
+      break;
+    case 2:
+
+      if(lonHomingTriggered){
+        lonHomingStatus++;
+        Serial.print("lonHomingStatus:3 currentPos:");
+        Serial.println(lonStepper.currentPosition());
+      }else{
+        lonStepper.runSpeed();
+      }
+      
+      break;
+    case 3:
+
+      if(!lonHomingTriggered){
+        lonHomingStatus++;
+        Serial.print("lonHomingStatus:4 currentPos:");
+        Serial.println(lonStepper.currentPosition());
+      }else{
+        lonStepper.runSpeed();
+      }
+
+      break;
+    case 4:
+
+      if(lonHomingTriggered){
+        lonHomingStatus++;
+        lonStepPerRevolution = lonStepper.currentPosition()*-1;
+        
+        latStepper.setCurrentPosition(lonStepPerRevolution);
+
+        Serial.print("lonHomingStatus:5 lonStepPerRevolution:");
+        Serial.println(lonStepPerRevolution);
+        lonStepper.moveTo(0);
+
+      }else{
+        lonStepper.runSpeed();
+      }
+
+      break;
+    case 5:
+      lonStepper.run();
+      break;
+  };
 
 }
 
 void loop()
 {
   
-  doHoming();
+  testMotor();
+  // doHoming();
 
   // if (Serial.available())
   // {
@@ -216,8 +299,8 @@ void loop()
   // if (latStepper.distanceToGo() == 0)
   //   latStepper.moveTo(-latStepper.currentPosition());
 
-  lonStepper.run();
-  latStepper.run();
+  // lonStepper.run();
+  // latStepper.run();
 }
 
 float getLon(int ptinx){
