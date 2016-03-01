@@ -31,19 +31,11 @@ int incomingByte = 0;
 int shutterTime = 10;
 
 bool runing = false;
-int homingStatus = 3; // 0=off - 1=homing lon - 2=homing lat
 
 void setup()
 {
   pinMode(SHUTTER_PIN, OUTPUT);
   Serial.begin(9600);
-
-  // lonAxe = new AxeMotor(
-  //   LON_STEPPER_STEP_PIN, 
-  //   LON_STEPPER_DIR_PIN, 
-  //   LON_STEPPER_HOMING_PIN,
-  //   LON_INIT_STEP_PER_REVOLUTION
-  //   );
 
   latAxe = new AxeMotor(
     LAT_STEPPER_STEP_PIN,
@@ -52,13 +44,24 @@ void setup()
     LAT_INIT_STEP_PER_REVOLUTION
     );
 
-  latAxe->setStatus(AxeMotor::STATUS_HOMING);  
+
+  lonAxe = new AxeMotor(
+    LON_STEPPER_STEP_PIN, 
+    LON_STEPPER_DIR_PIN, 
+    LON_STEPPER_HOMING_PIN,
+    LON_INIT_STEP_PER_REVOLUTION
+    );
+
+
+  latAxe->setStatus(AxeMotor::STATUS_HOMING);
+  lonAxe->setStatus(AxeMotor::STATUS_HOMING);  
+
 }
 
 void loop()
 {
-  // lonAxe->update();
   latAxe->update();
+  lonAxe->update();
 }
 
 

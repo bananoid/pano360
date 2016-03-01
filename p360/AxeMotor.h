@@ -15,13 +15,14 @@ public:
   };
 
   int status;
-  int homePin;
+  unsigned int homePin;
 
   int subStatus;
 
   long stepsPerRevolution;
 
-  AxeMotor(int stepPin, int dirPin, int homePin, long stepsPerRevolution);
+
+  AxeMotor(unsigned int stepPin, unsigned int dirPin, unsigned int homePin, long stepsPerRevolution);
 
   void resetMotor();
   
@@ -30,4 +31,9 @@ public:
   void setStatus(int status);
 
   void doHoming();
+
+private:
+  long strepFromLastState;
+  long lastHomingTriggeredTime;
+  bool lastHomingTriggered;
 };

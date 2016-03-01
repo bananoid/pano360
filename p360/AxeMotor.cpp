@@ -1,13 +1,14 @@
 #include "AxeMotor.h"
 
-AxeMotor::AxeMotor(int stepPin, int dirPin, int homePin, long stepsPerRevolution){
+AxeMotor::AxeMotor(unsigned int stepPin, unsigned int dirPin, unsigned int homePin, long stepsPerRevolution){
+  
   stepper = AccelStepper(AccelStepper::DRIVER, stepPin, dirPin);  
   status = STATUS_HIDLE;
   
-  pinMode(homePin, INPUT);
-
   this->stepsPerRevolution = stepsPerRevolution;
   this->homePin = homePin;
+
+  pinMode(this->homePin, INPUT);
 
   resetMotor();
 }
@@ -15,7 +16,8 @@ AxeMotor::AxeMotor(int stepPin, int dirPin, int homePin, long stepsPerRevolution
 void AxeMotor::resetMotor(){
   stepper.setMaxSpeed(stepsPerRevolution / 30);
   stepper.setAcceleration(stepsPerRevolution / 40);  
-  stepper.setSpeed(2000);
+  
+  stepper.setSpeed(stepsPerRevolution / 29);
 }
 
 void AxeMotor::setStatus(int status){
@@ -27,6 +29,9 @@ void AxeMotor::setStatus(int status){
       Serial.println("STATUS_HIDLE");
       break;
     case STATUS_HOMING:
+      lastHomingTriggeredTime = 0;
+      lastHomingTriggered = 0;
+
       Serial.println("STATUS_HOMING");
       break;
     case STATUS_SPIRAL:
@@ -39,21 +44,38 @@ void AxeMotor::setStatus(int status){
 void AxeMotor::update(){
   switch(status){
     case STATUS_HIDLE:
-      
       break;
     case STATUS_HOMING:
       doHoming();
       break;
     case STATUS_SPIRAL:
-
       break;
   };
 }
 
 void AxeMotor::doHoming(){
-  int homingTriggered = !digitalRead(homePin);
-  
-  int speed = 200;
+  int readHomingTriggered = !digitalRead(this->homePin);
+    
+  long deltaTime = millis() - lastHomingTriggeredTime;
+
+  if(deltaTime > 100 && lastHomingTriggered != readHomingTriggered ){
+    lastHomingTriggeredTime = millis();
+    lastHomingTriggered = readHomingTriggered;
+    Serial.print("lastHomingTriggered " );
+    Serial.println( this->homePin );
+    
+
+  }
+
+  int homingTriggered = lastHomingTriggered;
+  // homingTriggered = readHomingTriggered;
+
+  // Serial.print("this->homePin:");
+  // Serial.print(this->homePin);
+  // Serial.print("homingTriggered:");
+  // Serial.println(lastHomingTriggeredTime);
+
+  int speed = stepsPerRevolution / 30;
   
   switch (subStatus) {
     case 0:
@@ -61,6 +83,7 @@ void AxeMotor::doHoming(){
       subStatus++;
       Serial.print("START HOMING ");
       Serial.println(speed);
+      strepFromLastState = 0;
       break;      
     case 1:
       
