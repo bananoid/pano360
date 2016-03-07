@@ -44,6 +44,7 @@ void AxeMotor::setStatus(int status){
 void AxeMotor::update(){
   switch(status){
     case STATUS_HIDLE:
+      stepper.run();
       break;
     case STATUS_HOMING:
       doHoming();
