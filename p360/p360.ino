@@ -15,7 +15,7 @@
 #define LAT_STEPPER_DIR_PIN 7
 #define LAT_STEPPER_HOMING_PIN 8
 
-#define SHUTTER_PIN 13
+#define SHUTTER_PIN 11
 #define START_BTN_PIN 9
 
 #define PHI 0.6180339887498949
@@ -25,6 +25,11 @@
 #define JOYSTIC_X_MAX 600
 #define JOYSTIC_Y_MIN 298
 #define JOYSTIC_Y_MAX 818 
+
+struct Point{
+  float lon;
+  float lat;
+};
 
 AxeMotor *lonAxe;
 AxeMotor *latAxe;
@@ -40,10 +45,14 @@ bool runing = true;
 enum {
   MODE_JOYSTIC,
   MODE_HOMING,
-  MODE_PSPIRAL
+  MODE_PSPIRAL,
+  MODE_PANORAMA
 };
 
 int mode = MODE_JOYSTIC;
+
+float panoDeg = 30;
+Point points[500]; 
 
 void setup()
 {
@@ -52,6 +61,7 @@ void setup()
   Serial.println("------------CORRA TROTTOLA-----------");
   Serial.println("COMMAND j = JOYSTIC MODE");
   Serial.println("COMMAND h = HOMING MODE");
+  Serial.println("COMMAND p = PANORAMA MODE");
   Serial.println("COMMAND s = SPIRAL MODE");
 
   latAxe = new AxeMotor(
@@ -61,16 +71,12 @@ void setup()
     LAT_INIT_STEP_PER_REVOLUTION
     );
 
-
   lonAxe = new AxeMotor(
     LON_STEPPER_STEP_PIN, 
     LON_STEPPER_DIR_PIN, 
     LON_STEPPER_HOMING_PIN,
     LON_INIT_STEP_PER_REVOLUTION
     );
-
-  // latAxe->setStatus(AxeMotor::STATUS_HOMING);
-  // lonAxe->setStatus(AxeMotor::STATUS_HOMING);
 
 }
 
@@ -81,7 +87,6 @@ void setMode(int m){
     case MODE_JOYSTIC:
       break;
     case MODE_HOMING:
-      // do something
       latAxe->setStatus(AxeMotor::STATUS_HOMING);
       lonAxe->setStatus(AxeMotor::STATUS_HOMING);
       break;
@@ -89,6 +94,11 @@ void setMode(int m){
       currentPtInx = 0;
       latAxe->setStatus(AxeMotor::STATUS_HIDLE);
       lonAxe->setStatus(AxeMotor::STATUS_HIDLE);
+      break;
+    case MODE_PANORAMA:
+      currentPtInx = 0;
+      calculatePanoramaPoints();
+
       break;
   }
 }
@@ -109,6 +119,10 @@ void loop()
     }else if(incomingByte == 's'){
       Serial.println("SPIRAL MODE");
       setMode(MODE_PSPIRAL);
+    }else if(incomingByte == 'p'){
+      Serial.print("PANORAMA MODE deg:");
+      Serial.println(panoDeg); 
+      setMode(MODE_PANORAMA);
     }
   }
 
@@ -124,6 +138,11 @@ void loop()
         break;
       case MODE_PSPIRAL:
         do360Spiral();
+        latAxe->update();
+        lonAxe->update();
+        break;
+      case MODE_PANORAMA:
+        doPanorama();
         latAxe->update();
         lonAxe->update();
         break;
@@ -144,10 +163,130 @@ void loop()
 }
 
 
+
+void calculatePanoramaPoints(){
+  
+  
+  nbrPoints = 0;
+
+  float lonRadDelta = panoDeg / 180 * PI;
+  int lonNumPoints = (2*PI) / lonRadDelta;
+
+  float latRadDelta = lonRadDelta / 3.0 * 4.0;  
+  int latNumPoints = (2*PI) / latRadDelta / 4;
+
+  Point p;
+
+  Serial.print("lonNumPoints:");
+  Serial.print(lonNumPoints);
+  Serial.print("\tlatNumPoints:");
+  Serial.print(latNumPoints);
+  Serial.println("");
+
+
+  float lat;
+
+
+  for(int i = 0; i < lonNumPoints; i++){
+    p.lon = lonRadDelta * i; 
+    p.lat = PI / 2.0;
+    points[nbrPoints++] = p;
+  }
+
+
+  lat = 0;
+  for(int j = 0; j <= latNumPoints; j++){
+    p.lat = lat;
+    int partLonNumPoints = ceil( mapf(lat, 0, PI/2, 1, lonNumPoints) );
+    float partAngle = 2*PI / partLonNumPoints;
+        
+    Serial.print("partLonNumPoints: ");
+    Serial.print(partLonNumPoints);
+    Serial.print("\t of ");
+    Serial.println(lonNumPoints);
+
+    for(int i=0; i<partLonNumPoints; i++){
+      p.lon = partAngle * i; 
+      points[nbrPoints++] = p;
+    }
+
+    lat += latRadDelta;
+  }
+
+  
+  lat = PI;
+  for(int j = 0; j <= latNumPoints; j++){
+    p.lat = lat;
+    int partLonNumPoints = ceil( mapf(PI - lat, 0, PI/2, 1, lonNumPoints) );
+    float partAngle = 2*PI / partLonNumPoints;
+        
+    Serial.print("partLonNumPoints: ");
+    Serial.print(partLonNumPoints);
+    Serial.print("\t of ");
+    Serial.println(lonNumPoints);
+
+    for(int i=0; i<partLonNumPoints; i++){
+      p.lon = partAngle * i; 
+      points[nbrPoints++] = p;
+    }
+
+    lat -= latRadDelta;
+  }
+
+  for(int i = 0; i < nbrPoints; i++){
+    p = points[i];
+
+    Serial.print("p:");
+    Serial.print(i);
+    Serial.print("\tlon:");
+    Serial.print(p.lon);
+    Serial.print("\tlat:");
+    Serial.print(p.lat);
+    Serial.println("");
+  }
+  Serial.println("------------------------");
+}
+
+void doPanorama(){
+  if(lonAxe->stepper.distanceToGo() == 0 && latAxe->stepper.distanceToGo() == 0){
+  
+    delay(500);
+
+    digitalWrite(SHUTTER_PIN, 1);
+    delay(600);
+    digitalWrite(SHUTTER_PIN, 0);
+    delay(600);
+
+    delay(shutterTime);
+
+    Point p = points[currentPtInx];
+
+    long lonSteps = radToStep( p.lon, lonAxe->stepsPerRevolution );
+    long latSteps = radToStep( p.lat, latAxe->stepsPerRevolution );
+
+    Serial.print("p:");
+    Serial.print(currentPtInx);
+    Serial.print("\tlon:");
+    Serial.print(p.lon);
+    Serial.print("\tlat:");
+    Serial.print(p.lat);
+    Serial.println();
+
+    lonAxe->stepper.moveTo(lonSteps);
+    latAxe->stepper.moveTo(latSteps);
+
+    currentPtInx++;  
+    currentPtInx = currentPtInx % nbrPoints;   
+    
+    if(currentPtInx == 0){
+      setMode(MODE_JOYSTIC);
+    }
+
+  }
+}
+
+
 void do360Spiral(){
-  if(!runing) return;
-
-
   if(lonAxe->stepper.distanceToGo() == 0 && latAxe->stepper.distanceToGo() == 0){
 
     delay(500);
@@ -186,7 +325,7 @@ void do360Spiral(){
     currentPtInx = currentPtInx % nbrPoints;   
     
     if(currentPtInx == 0){
-      runing = false;
+      setMode(MODE_JOYSTIC);
     }
   
   }
@@ -251,7 +390,9 @@ void moveWithJoistic()
   latAxe->stepper.setSpeed(speedY);
   latAxe->stepper.runSpeed();
 
-  // latAxe->stepper.move(speedY);
+  latAxe->stepper.move(speedY);
+  
+
   // Serial.print("raw x:");
   // Serial.print(xVal);
   // Serial.print("\tmap x:");
